@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 智能讀書計畫儀表板</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Markdown Parser -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Chart.js for Data Visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* 自定義樣式與動畫 */
+        body { font-family: 'Segoe UI', 'Microsoft JhengHei', sans-serif; background-color: #f3f4f6; }
+        
+        /* 側邊欄選單樣式 */
+        .sidebar-item { transition: all 0.2s; cursor: pointer; border-left: 4px solid transparent; }
+        .sidebar-item:hover { background-color: #f3f4f6; }
+        .sidebar-item.active { background-color: #e0e7ff; color: #4338ca; border-left: 4px solid #4338ca; }
+        
+        /* 卡片懸浮效果 */
+        .card { transition: transform 0.2s, box-shadow 0.2s; }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        
+        /* Prompt 顯示區塊 */
+        .prompt-box { background-color: #1e293b; color: #cbd5e1; font-family: 'Consolas', 'Monaco', monospace; position: relative; line-height: 1.6; }
+        .prompt-highlight { color: #facc15; font-weight: bold; text-decoration: underline; }
+        
+        /* AI 結果顯示區塊 */
+        .ai-result-box { background-color: #ffffff; border: 1px solid #e2e8f0; font-family: 'Segoe UI', sans-serif; line-height: 1.7; color: #334155; }
+        .ai-result-box h1, .ai-result-box h2, .ai-result-box h3 { color: #1e293b; font-weight: bold; margin-top: 1em; margin-bottom: 0.5em; }
+        .ai-result-box ul { list-style-type: disc; padding-left: 1.5em; }
+        .ai-result-box ol { list-style-type: decimal; padding-left: 1.5em; }
+        .ai-result-box strong { color: #4338ca; }
+        .ai-result-box hr { margin: 1em 0; border-color: #e2e8f0; }
+        .ai-result-box table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+        .ai-result-box th, .ai-result-box td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; }
+        .ai-result-box th { background-color: #f1f5f9; font-weight: bold; }
+        
+        /* 複製按鈕 */
+        .copy-btn { position: absolute; top: 0.5rem; right: 0.5rem; opacity: 0.8; transition: opacity 0.2s; }
+        .copy-btn:hover { opacity: 1; }
+        
+        /* 隱藏/顯示區塊動畫 */
+        .hidden-section { display: none; }
+        .fade-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 拖放區塊樣式 */
+        .drop-zone { transition: all 0.3s; background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='12' ry='12' stroke='%23CBD5E1FF' stroke-width='2' stroke-dasharray='12%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e"); }
+        .drop-zone.dragover { background-color: #e0e7ff; border-color: #4338ca; background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='12' ry='12' stroke='%234338CAFF' stroke-width='2' stroke-dasharray='12%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e"); }
+
+        /* 滾動條美化 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #c7c7c7; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a0a0a0; }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden text-gray-800">
+
+    <!-- 左側導覽列 -->
+    <aside class="w-20 lg:w-64 bg-white shadow-xl flex flex-col z-20 transition-all duration-300">
+        <div class="p-4 lg:p-6 border-b flex items-center justify-center lg:justify-start gap-3 h-20">
+            <div class="bg-indigo-600 text-white p-2 rounded-lg">
+                <i class="fa-solid fa-graduation-cap text-xl"></i>
+            </div>
+            <h1 class="font-bold text-xl text-gray-800 hidden lg:block">AI 讀書教練</h1>
+        </div>
+        
+        <nav class="flex-1 overflow-y-auto py-4 space-y-1">
+            <div onclick="switchTab('daily')" id="nav-daily" class="sidebar-item active p-4 flex items-center gap-4 text-gray-600 hover:text-indigo-600">
+                <i class="fa-solid fa-calendar-day w-6 text-center text-lg"></i> 
+                <span class="hidden lg:block font-medium">每日讀書計畫</span>
+            </div>
+            <div onclick="switchTab('error')" id="nav-error" class="sidebar-item p-4 flex items-center gap-4 text-gray-600 hover:text-teal-600">
+                <i class="fa-solid fa-bug w-6 text-center text-lg"></i> 
+                <span class="hidden lg:block font-medium">錯題分析與每週計畫</span>
+            </div>
+            <div onclick="switchTab('exam')" id="nav-exam" class="sidebar-item p-4 flex items-center gap-4 text-gray-600 hover:text-orange-600">
+                <i class="fa-solid fa-stopwatch w-6 text-center text-lg"></i> 
+                <span class="hidden lg:block font-medium">段考衝刺 (7天)</span>
+            </div>
+            <div onclick="switchTab('review')" id="nav-review" class="sidebar-item p-4 flex items-center gap-4 text-gray-600 hover:text-pink-600">
+                <i class="fa-solid fa-magnifying-glass-chart w-6 text-center text-lg"></i> 
+                <span class="hidden lg:block font-medium">考後 AI 檢討</span>
+            </div>
+            <div onclick="switchTab('quick')" id="nav-quick" class="sidebar-item p-4 flex items-center gap-4 text-gray-600 hover:text-yellow-600">
+                <i class="fa-solid fa-hand-holding-heart w-6 text-center text-lg"></i> 
+                <span class="hidden lg:block font-medium">我可以跟你一起學習</span>
+            </div>
+        </nav>
+        
+        <div class="p-4 border-t text-xs text-gray-400 text-center hidden lg:block">
+            <button onclick="toggleConfigModal()" class="text-indigo-500 hover:underline mb-2 block w-full text-left">🔗 設定後台連結</button>
+            <p class="mt-1">Designed for Student Success</p>
+            <p class="mt-1">v7.1.0 (Single Column)</p>
+        </div>
+    </aside>
+
+    <!-- 右側主內容 -->
+    <main class="flex-1 overflow-y-auto bg-gray-50 relative w-full">
+        
+        <!-- Config Modal -->
+        <div id="config-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center fade-in">
+            <div class="bg-white p-6 rounded-xl shadow-2xl w-96 max-w-full m-4">
+                <h3 class="text-xl font-bold mb-4 text-gray-800">設定 Google Apps Script 後台</h3>
+                <p class="text-sm text-gray-600 mb-4">請貼上部署完成的 Web App URL，以便將學習記錄儲存至 Google 試算表。</p>
+                <input type="text" id="gas-url-input" placeholder="https://script.google.com/macros/s/..." class="w-full p-3 border rounded mb-4 text-sm">
+                <div class="flex justify-end gap-2">
+                    <button onclick="toggleConfigModal()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">取消</button>
+                    <button onclick="saveGasUrl()" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">儲存</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 成功複製提示 (Toast) -->
+        <div id="toast" class="fixed top-6 right-6 bg-emerald-600 text-white px-6 py-4 rounded-lg shadow-2xl transform translate-x-[150%] transition-transform duration-300 z-50 flex items-center gap-3 border-l-4 border-emerald-300">
+            <i class="fa-solid fa-circle-check text-xl"></i>
+            <div>
+                <h4 class="font-bold text-sm">操作成功！</h4>
+                <p class="text-xs text-emerald-100" id="toast-msg">已複製到剪貼簿</p>
+            </div>
+        </div>
+
+        <div class="max-w-4xl mx-auto p-4 lg:p-10 pb-20">
+            
+            <!-- 1. 每日讀書計畫 -->
+            <section id="daily" class="fade-in">
+                <header class="mb-8 border-b pb-4 border-gray-200">
+                    <h2 class="text-3xl font-bold text-gray-800 flex items-center gap-3">
+                        <span class="bg-indigo-100 text-indigo-600 p-2 rounded-lg"><i class="fa-solid fa-calendar-day"></i></span>
+                        每日讀書計畫
+                    </h2>
+                    <p class="text-gray-500 mt-2 ml-14">設定今日目標，利用 AI 進行高效複習與刷題。</p>
+                </header>
+                
+                <!-- 圖片上傳與自動判斷區塊 -->
+                <div class="bg-white p-6 rounded-xl shadow-sm mb-8 border border-gray-100">
+                    <h3 class="font-bold text-lg mb-4 text-gray-700 border-l-4 border-indigo-500 pl-3 flex justify-between items-center">
+                        <span>🎯 今日目標設定 (圖片智慧分析)</span>
+                    </h3>
+                    
+                    <!-- 拖放區 (全寬) -->
+                    <div id="drop-zone" class="drop-zone w-full h-32 bg-slate-50 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-indigo-50 relative group overflow-hidden mb-6" onclick="document.getElementById('file-input').click()">
+                        <input type="file" id="file-input" class="hidden" accept="image/*" multiple onchange="handleFiles(this.files, 'daily')">
+                        <div id="drop-zone-text" class="text-center p-4">
+                            <i class="fa-solid fa-cloud-arrow-up text-3xl text-gray-400 mb-2 group-hover:text-indigo-500 transition"></i>
+                            <p class="text-gray-500 font-medium">拖放圖片或<span class="text-indigo-600 underline">貼上截圖</span> (Ctrl+V)</p>
+                            <p class="text-xs text-gray-400 mt-1">手機版點擊即可拍照上傳</p>
+                        </div>
+                        <div id="preview-container" class="absolute inset-0 bg-white/90 hidden flex items-center gap-2 p-2 overflow-x-auto"></div>
+                    </div>
+
+                    <!-- 分析按鈕 -->
+                    <div class="flex justify-center mb-6">
+                        <button onclick="analyzeImagesAndGenerateAll()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-full shadow-lg flex items-center gap-2 transition transform active:scale-95 disabled:bg-gray-400 disabled:cursor-not-allowed" id="analyze-btn">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> 
+                            <span id="analyze-text">AI 自動判斷目標並生成內容</span>
+                        </button>
+                    </div>
+
+                    <!-- 結果輸入欄位 (單欄排列) -->
+                    <div class="flex flex-col gap-6" id="inputs-container">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-600 mb-2">科目</label>
+                            <input type="text" id="daily-subject" placeholder="例如：高中數學" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:border-indigo-500 outline-none transition bg-gray-50 focus:bg-white" oninput="updateDailyPrompts()">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-600 mb-2">單元/章節</label>
+                            <input type="text" id="daily-unit" placeholder="例如：三角函數" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:border-indigo-500 outline-none transition bg-gray-50 focus:bg-white" oninput="updateDailyPrompts()">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-600 mb-2">今日最重要任務</label>
+                            <input type="text" id="daily-task" placeholder="例如：搞懂正弦定理的應用" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:border-indigo-500 outline-none transition bg-gray-50 focus:bg-white" oninput="updateDailyPrompts()">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-8">
+                    <!-- AI 圖像學習助手 Card -->
+                    <div class="bg-white rounded-xl shadow-sm card overflow-hidden border border-gray-100">
+                        <div class="bg-blue-50 p-4 border-b border-blue-100 flex items-center gap-2">
+                            <i class="fa-solid fa-brain text-blue-600"></i>
+                            <h3 class="font-bold text-blue-800">AI 圖像學習助手 (自動生成)</h3>
+                        </div>
+                        <div class="p-6 flex flex-col h-full gap-8">
+                            <!-- 閃卡區塊 -->
+                            <div>
+                                <h4 class="font-bold text-gray-700 mb-2 flex items-center gap-2"><i class="fa-solid fa-clone text-blue-500"></i> 學習閃卡</h4>
+                                <div id="ai-flashcards-result" class="min-h-[100px] ai-result-box p-4 rounded text-sm overflow-y-auto max-h-80 border-t-4 border-blue-300 bg-slate-50">
+                                    <p class="text-gray-400 text-center mt-4 text-xs">等待分析圖片後自動生成...</p>
+                                </div>
+                            </div>
+                            <!-- 心智圖區塊 -->
+                            <div>
+                                <h4 class="font-bold text-gray-700 mb-2 flex items-center gap-2"><i class="fa-solid fa-sitemap text-blue-500"></i> 心智圖結構</h4>
+                                <div id="ai-mindmap-result" class="min-h-[100px] ai-result-box p-4 rounded text-sm overflow-y-auto max-h-80 border-t-4 border-blue-300 bg-slate-50">
+                                    <p class="text-gray-400 text-center mt-4 text-xs">等待分析圖片後自動生成...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Concept Card -->
+                    <div class="bg-white rounded-xl shadow-sm card overflow-hidden border border-gray-100">
+                        <div class="bg-emerald-50 p-4 border-b border-emerald-100 flex items-center gap-2">
+                            <i class="fa-solid fa-robot text-emerald-600"></i>
+                            <h3 class="font-bold text-emerald-800">觀念理解 (自動講解)</h3>
+                        </div>
+                        <div class="p-6 flex flex-col h-full">
+                            <p class="text-sm text-gray-600 mb-4">針對 <span class="font-bold text-emerald-600 daily-task-display">____</span> 自動生成白話文解釋與生活實例：</p>
+                            <div id="ai-concept-result" class="flex-1 min-h-[250px] ai-result-box p-6 rounded text-sm overflow-y-auto max-h-[600px] border-t-4 border-emerald-400 bg-slate-50">
+                                <p class="text-gray-400 text-center mt-10 text-xs">等待分析目標後自動生成...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Practice Card -->
+                    <div class="bg-white rounded-xl shadow-sm card overflow-hidden border border-gray-100">
+                        <div class="bg-purple-50 p-4 border-b border-purple-100 flex items-center gap-2">
+                            <i class="fa-solid fa-pen-to-square text-purple-600"></i>
+                            <h3 class="font-bold text-purple-800">每日必做練習 (AI 自動出題)</h3>
+                        </div>
+                        <div class="p-6 flex flex-col h-full">
+                            <p class="text-sm text-gray-600 mb-4">AI 家教根據今日進度自動出題：</p>
+                            <div id="ai-quiz-result" class="flex-1 min-h-[300px] ai-result-box p-6 rounded text-sm overflow-y-auto max-h-[600px] border-t-4 border-purple-400 bg-slate-50">
+                                <p class="text-gray-400 text-center mt-10 text-xs">等待分析目標後自動生成 10 題練習題...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. 錯題分析與每週計畫 -->
+            <section id="error" class="hidden-section fade-in">
+                <header class="mb-8 border-b pb-4 border-gray-200">
+                    <h2 class="text-3xl font-bold text-gray-800 flex items-center gap-3">
+                        <span class="bg-teal-600 text-white px-3 py-1 rounded-lg text-2xl"><i class="fa-solid fa-chart-line"></i></span>
+                        錯題分析與每週計畫
+                    </h2>
+                    <p class="text-gray-500 mt-2 ml-14">一站式完成錯題檢討、學習診斷與下週策略規劃。</p>
+                </header>
+
+                <!-- 輸入區 -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
+                    <h3 class="font-bold text-lg mb-4 text-gray-700 border-l-4 border-teal-500 pl-3 flex justify-between items-center">
+                        <span>📝 錯題智慧分析區</span>
+                        <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">支援圖片 / 文字</span>
+                    </h3>
+
+                    <!-- 拖放區 -->
+                    <div id="error-drop-zone" class="drop-zone w-full h-32 bg-slate-50 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-teal-50 relative group overflow-hidden border-2 border-dashed border-gray-300" onclick="document.getElementById('error-file-input').click()">
+                        <input type="file" id="error-file-input" class="hidden" accept="image/*" multiple onchange="handleFiles(this.files, 'error')">
+                        <div id="error-drop-text" class="text-center p-4">
+                            <i class="fa-solid fa-camera text-3xl text-gray-400 mb-2 group-hover:text-teal-500 transition"></i>
+                            <p class="text-gray-500 font-medium">拖放錯題截圖或<span class="text-teal-600 underline">貼上圖片</span> (Ctrl+V)</p>
+                            <p class="text-xs text-gray-400 mt-1">點擊即可上傳</p>
+                        </div>
+                        <div id="error-preview-container" class="absolute inset-0 bg-white/90 hidden flex items-center gap-2 p-2 overflow-x-auto"></div>
+                    </div>
+
+                    <!-- 文字輸入區 -->
+                    <textarea id="error-text-input" class="w-full h-32 mt-6 p-4 border border-gray-300 rounded-xl font-mono text-sm bg-gray-50 focus:ring-2 focus:ring-teal-300 focus:border-teal-500 outline-none transition resize-none" placeholder="或者直接在此輸入您的錯題內容或作答情況..."></textarea>
+
+                    <!-- 分析按鈕 -->
+                    <div class="flex justify-center mt-6">
+                        <button onclick="generateFullErrorAnalysis()" class="bg-teal-600 hover:bg-teal-700 text-white px-8 py-3 rounded-full shadow-lg flex items-center gap-2 transition transform active:scale-95" id="btn-full-analysis">
+                            <i class="fa-solid fa-rocket"></i> 執行全方位分析 (補救+診斷+計畫)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 1. 錯題補救區 -->
+                <div class="flex flex-col gap-8">
+                    <div class="bg-white rounded-xl shadow-sm card border border-gray-100 overflow-hidden">
+                        <div class="bg-red-50 p-4 border-b border-red-100 font-bold text-red-800 flex items-center gap-2">
+                            <i class="fa-solid fa-stethoscope"></i> 1. 錯題補救 (AI 錯題深度解析 & 補強)
+                        </div>
+                        <div class="p-6">
+                            <div id="ai-remediation-result" class="min-h-[200px] ai-result-box p-6 rounded text-sm overflow-y-auto max-h-[600px] border-t-4 border-red-300 bg-slate-50">
+                                <p class="text-gray-400 text-center mt-10 text-xs">等待分析...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. 學習診斷區 -->
+                    <div class="bg-white rounded-xl shadow-sm card border border-gray-100 overflow-hidden">
+                         <div class="bg-teal-50 p-4 border-b border-teal-100 font-bold text-teal-800 flex items-center gap-2">
+                            <i class="fa-solid fa-user-doctor"></i> 2. AI 學習診斷 (基於錯題循環)
+                        </div>
+                        <div class="p-6">
+                            <div id="weekly-diagnosis-result" class="min-h-[300px] ai-result-box p-6 rounded text-sm overflow-y-auto max-h-[600px] border-t-4 border-teal-300 bg-slate-50">
+                                <p class="text-gray-400 text-center mt-10 text-xs">等待分析...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. 下週策略區 -->
+                    <div class="bg-white rounded-xl shadow-sm card border border-gray-100 overflow-hidden">
+                        <div class="bg-blue-50 p-4 border-b border-blue-100 font-bold text-blue-800 flex items-center gap-2">
+                            <i class="fa-solid fa-route"></i> 3. 下週 5 天讀書策略
+                        </div>
+                        <div class="p-6">
+                            <div id="weekly-strategy-result" class="min-h-[300px] ai-result-box p-6 rounded text-sm overflow-y-auto max-h-[600px] border-t-4 border-blue-300 bg-slate-50">
+                                <p class="text-gray-400 text-center mt-10 text-xs">等待分析...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. 段考衝刺 -->
+            <section id="exam" class="hidden-section fade-in">
+                <header class="mb-8 border-b pb-4 border-gray-200">
+                    <h2 class="text-3xl font-bold text-gray-800 flex items-center gap-3">
+                        <span class="bg-orange-100 text-orange-600 p-2 rounded-lg"><i class="fa-solid fa-stopwatch"></i></span>
+                        段考前 7 天衝刺
+                    </h2>
+                    <p class="text-gray-500 mt-2 ml-14">集中火力，針對考點與弱項進行最後衝刺。</p>
+                </header>
+                
+                <div class="bg-white p-6 rounded-xl shadow-sm mb-8 border border-gray-100">
+                     <h3 class="font-bold text-lg mb-4 text-gray-700 border-l-4 border-orange-500 pl-3">💪 我要再努力一下</h3>
+                     <p class="text-sm text-gray-500 mb-2">延續每週讀書計畫的診斷結果，針對弱點進行衝刺。</p>
+                     
+                     <div id="exam-diagnosis-ref" class="min-h-[150px] ai-result-box p-6 rounded text-sm overflow-y-auto max-h-[300px] border-t-4 border-orange-300 bg-orange-50/30">
+                        <p class="text-gray-400 text-center mt-6 text-xs">請先完成「錯題分析與每週計畫」中的學習診斷，內容將自動同步至此。</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-8">
+                    <!-- NotebookLM 考點地圖 -->
+                    <div class="bg-white rounded-xl shadow-sm card border-l-4 border-blue-500 overflow-hidden">
+                        <div class="p-6">
+                            <h3 class="font-bold text-lg mb-4 text-gray-800">🧭 NotebookLM 考點地圖 (自動生成)</h3>
+                            
+                            <!-- 拖放區 -->
+                            <div id="exam-drop-zone" class="drop-zone h-40 bg-slate-50 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-blue-50 relative group overflow-hidden border-2 border-dashed border-gray-300 mb-6" onclick="document.getElementById('exam-file-input').click()">
+                                <input type="file" id="exam-file-input" class="hidden" accept="image/*" multiple onchange="handleFiles(this.files, 'exam')">
+                                <div id="exam-drop-text" class="text-center p-4">
+                                    <i class="fa-solid fa-book-open text-3xl text-gray-400 mb-2 group-hover:text-blue-500 transition"></i>
+                                    <p class="text-gray-500 font-medium">上傳講義/課本/筆記圖片</p>
+                                    <p class="text-xs text-gray-400 mt-1">拖放或貼上截圖</p>
+                                </div>
+                                <div id="exam-preview-container" class="absolute inset-0 bg-white/90 hidden flex items-center gap-2 p-2 overflow-x-auto"></div>
+                            </div>
+
+                            <!-- 生成按鈕 -->
+                            <div class="flex justify-center mb-6">
+                                <button onclick="generateExamMap()" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-full shadow-md flex items-center justify-center gap-2 transition transform active:scale-95">
+                                    <i class="fa-solid fa-map-location-dot"></i> 生成考點地圖
+                                </button>
+                            </div>
+
+                            <!-- 結果顯示區 -->
+                            <div id="ai-exam-map-result" class="hidden min-h-[200px] ai-result-box p-6 rounded text-sm overflow-y-auto max-h-[500px] border-t-4 border-blue-300 bg-slate-50">
+                                <!-- AI Content -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 7 Day Plan -->
+                    <div class="bg-white rounded-xl shadow-sm card border-l-4 border-orange-500 overflow-hidden">
+                        <div class="p-6">
+                            <h3 class="font-bold text-lg mb-2 text-gray-800">📅 黃金複習計畫 (自動連動)</h3>
+                            <div id="ai-exam-plan-result" class="min-h-[300px] ai-result-box p-6 rounded text-sm overflow-y-auto max-h-[600px] border-t-4 border-orange-300 bg-slate-50">
+                                <p class="text-gray-400 text-center mt-10 text-xs">等待考點地圖生成後，自動規劃 7 天衝刺表...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mock Exam -->
+                    <div class="bg-white rounded-xl shadow-sm card border-l-4 border-red-500 overflow-hidden">
+                        <div class="p-6">
+                            <h3 class="font-bold text-lg mb-2 text-gray-800">📝 段考模擬試卷 (自動連動)</h3>
+                            <div id="ai-mock-exam-result" class="min-h-[300px] ai-result-box p-6 rounded text-sm overflow-y-auto max-h-[600px] border-t-4 border-red-300 bg-slate-50">
+                                <p class="text-gray-400 text-center mt-10 text-xs">等待考點地圖生成後，自動出題...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 5. 考後檢討 -->
+            <section id="review" class="hidden-section fade-in">
+                <header class="mb-8 border-b pb-4 border-gray-200">
+                    <h2 class="text-3xl font-bold text-gray-800 flex items-center gap-3">
+                        <span class="bg-pink-100 text-pink-600 p-2 rounded-lg"><i class="fa-solid fa-magnifying-glass-chart"></i></span>
+                        考後 AI 檢討
+                    </h2>
+                    <p class="text-gray-500 mt-2 ml-14">考完試不是結束，而是抓出迷思概念的最佳時機。</p>
+                </header>
+                
+                <div class="bg-white p-6 rounded-xl shadow-sm mb-8 border border-gray-100">
+                    <h3 class="font-bold text-lg mb-4 text-gray-700 border-l-4 border-pink-500 pl-3 flex justify-between items-center">
+                        <span>📸 上傳考卷錯題 (圖片智慧分析)</span>
+                    </h3>
+                    
+                    <div id="review-drop-zone" class="drop-zone w-full h-40 bg-slate-50 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-pink-50 relative group overflow-hidden border-2 border-dashed border-gray-300 mb-6" onclick="document.getElementById('review-file-input').click()">
+                        <input type="file" id="review-file-input" class="hidden" accept="image/*" multiple onchange="handleFiles(this.files, 'review')">
+                        <div id="review-drop-text" class="text-center p-4">
+                            <i class="fa-solid fa-file-circle-xmark text-3xl text-gray-400 mb-2 group-hover:text-pink-500 transition"></i>
+                            <p class="text-gray-500 font-medium">貼上錯題截圖 (Ctrl+V) 或 點擊上傳</p>
+                        </div>
+                        <div id="review-preview-container" class="absolute inset-0 bg-white/90 hidden flex items-center gap-2 p-2 overflow-x-auto"></div>
+                    </div>
+
+                    <div class="flex justify-center mb-6">
+                        <button onclick="analyzeReviewImages()" class="bg-pink-600 hover:bg-pink-700 text-white px-8 py-3 rounded-full shadow-lg flex items-center gap-2 transition transform active:scale-95">
+                            <i class="fa-solid fa-microscope"></i> 開始深度檢討
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm card overflow-hidden border border-gray-100">
+                    <div class="bg-pink-50 p-4 border-b border-pink-100 font-bold text-pink-800 flex items-center gap-2">
+                         <i class="fa-solid fa-clipboard-check"></i> 🔍 深度檢討與補救
+                    </div>
+                    <div class="p-6">
+                        <div id="ai-review-analysis-result" class="min-h-[400px] ai-result-box p-6 rounded text-sm overflow-y-auto max-h-[800px] border-t-4 border-pink-300 bg-slate-50">
+                            <p class="text-gray-400 text-center mt-20 text-xs">
+                                <i class="fa-solid fa-arrow-up text-lg mb-2 block"></i>
+                                請上傳錯題圖片並點擊分析，AI 將為您生成完整的補救方案。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 6. 我可以跟你一起學習 -->
+            <section id="quick" class="hidden-section fade-in">
+                <header class="mb-8 border-b pb-4 border-gray-200">
+                    <h2 class="text-3xl font-bold text-gray-800 flex items-center gap-3">
+                        <span class="bg-yellow-100 text-yellow-600 p-2 rounded-lg"><i class="fa-solid fa-hand-holding-heart"></i></span>
+                        我可以跟你一起學習
+                    </h2>
+                    <p class="text-gray-500 mt-2 ml-14">你的個人 AI 學習夥伴，隨時為你解惑並整理學習歷程。</p>
+                </header>
+
+                <!-- 我想問一下 -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
+                    <h3 class="font-bold text-lg mb-4 text-gray-700 border-l-4 border-yellow-500 pl-3">
+                        🙋 我想問一下
+                    </h3>
+                    
+                    <div class="relative">
+                        <textarea id="ask-ai-input" class="w-full h-32 p-4 border border-gray-300 rounded-xl font-mono text-sm bg-yellow-50 focus:ring-2 focus:ring-yellow-300 focus:border-yellow-500 outline-none transition resize-none" placeholder="例如：剛才生成的錯題解析中，第三題的觀念我還是不太懂..."></textarea>
+                        <div class="absolute bottom-3 right-3">
+                            <button onclick="askAI()" id="btn-ask-ai" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg shadow-sm text-sm flex items-center gap-2 transition">
+                                <i class="fa-solid fa-paper-plane"></i> 發送問題
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- AI 回答區 -->
+                    <div id="ai-chat-response" class="hidden mt-4 min-h-[100px] ai-result-box p-6 rounded-xl text-sm border-t-4 border-yellow-300 bg-white shadow-inner"></div>
+                </div>
+
+                <!-- 學習歷程彙整 -->
+                <div class="bg-white rounded-xl shadow-sm card overflow-hidden border border-gray-100 mb-8">
+                    <div class="bg-gray-50 p-4 border-b border-gray-200 font-bold text-gray-700 flex items-center gap-2 justify-between">
+                        <span class="flex items-center gap-2"><i class="fa-solid fa-folder-open"></i> 📚 學習歷程彙整 (本次生成內容)</span>
+                        <button onclick="saveDataToBackend()" class="text-xs bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700 transition flex items-center gap-1">
+                            <i class="fa-solid fa-cloud-arrow-up"></i> 上傳至雲端試算表
+                        </button>
+                    </div>
+                    <div class="p-6 bg-slate-50">
+                        <div id="summary-container" class="flex flex-col gap-6">
+                            <p class="text-gray-400 text-center py-10 text-sm">目前還沒有生成的內容，快去其他頁面開始學習吧！</p>
+                        </div>
+                        <div class="mt-6 text-center">
+                            <button onclick="renderSummary()" class="text-indigo-600 text-sm hover:underline"><i class="fa-solid fa-rotate"></i> 刷新彙整內容</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 學習數據儀表板 -->
+                <div class="bg-white rounded-xl shadow-sm card overflow-hidden border border-gray-100">
+                    <div class="bg-gray-50 p-4 border-b border-gray-200 font-bold text-gray-700 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-pie"></i> 📊 學習數據儀表板
+                    </div>
+                    <div class="p-6 flex flex-col gap-8">
+                        <div>
+                            <h4 class="text-sm font-bold text-gray-600 mb-4 text-center">能力與活動雷達分析</h4>
+                            <div class="relative h-64 w-full">
+                                <canvas id="radarChart"></canvas>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-gray-600 mb-4 text-center">學習累積產出量</h4>
+                            <div class="relative h-64 w-full">
+                                <canvas id="barChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <script>
+        const userApiKey = 'AIzaSyDmsZTY4Quo2LsalDSR-9Yjg-KslSJr27o'; 
+        let gasWebAppUrl = 'https://script.google.com/macros/s/AKfycbwygx2nxTGV8J2KuL9baN4xyhoi64jLEzhD4dKCfuwB0d_x97T6hR_AQgriV9rjuiFK/exec'; // Hardcoded GAS URL
+
+        let uploadedImages = []; 
+        let errorUploadedImages = []; 
+        let examUploadedImages = []; 
+        let reviewUploadedImages = []; 
+        
+        let lastWeeklyDiagnosis = ""; 
+        let lastExamMapResult = ""; 
+
+        // Learning Stats Tracking
+        const learningStats = {
+            daily: 0,
+            error: 0,
+            exam: 0,
+            review: 0,
+            flashcards_count: 0,
+            questions_count: 0,
+            plans_count: 0
+        };
+
+        let radarChart = null;
+        let barChart = null;
+
+        // Config Modal Logic (Simplified as hardcoded)
+        function toggleConfigModal() {
+            alert("後台連結已直接設定於程式碼中：\n" + gasWebAppUrl);
+        }
+
+        function saveGasUrl() {
+            // No-op for hardcoded version
+        }
+
+        // --- Data Sending Logic ---
+        async function saveDataToBackend() {
+            if(!gasWebAppUrl) {
+                alert("請先設定後台連結 (Web App URL)！");
+                return;
+            }
+
+            const summaryHTML = document.getElementById('summary-container').innerText;
+            const dataPayload = {
+                type: '學習彙整',
+                topic: '綜合學習記錄',
+                content: summaryHTML.substring(0, 5000), 
+                stats: learningStats
+            };
+
+            try {
+                await fetch(gasWebAppUrl, {
+                    method: 'POST',
+                    mode: 'no-cors', 
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify(dataPayload)
+                });
+                alert("資料已傳送至後台！(請檢查您的 Google 試算表)");
+            } catch (error) {
+                console.error(error);
+                alert("傳送失敗，請檢查網址或網路連線。");
+            }
+        }
+
+        // Tab Switching Logic
+        function switchTab(tabId) {
+            document.querySelectorAll('section').forEach(el => el.classList.add('hidden-section'));
+            document.getElementById(tabId).classList.remove('hidden-section');
+            
+            document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active', 'bg-indigo-50', 'text-indigo-700', 'border-l-4', 'border-indigo-600', 'text-gray-900'));
+            const navItem = document.getElementById('nav-' + tabId);
+            navItem.classList.add('active');
+            
+            if(tabId === 'exam') {
+                const diagRef = document.getElementById('exam-diagnosis-ref');
+                if(lastWeeklyDiagnosis) {
+                    diagRef.innerHTML = `
+                        <div class="font-bold text-orange-800 mb-2"><i class="fa-solid fa-link"></i> 來自錯題分析的診斷：</div>
+                        ${marked.parse(lastWeeklyDiagnosis)}
+                    `;
+                }
+            } else if (tabId === 'quick') {
+                renderSummary();
+                updateCharts(); 
+            }
+
+            document.querySelector('main').scrollTop = 0;
+        }
+
+        // --- Chart.js Logic ---
+        function updateCharts() {
+            const ctxRadar = document.getElementById('radarChart').getContext('2d');
+            const ctxBar = document.getElementById('barChart').getContext('2d');
+
+            if(radarChart) radarChart.destroy();
+            if(barChart) barChart.destroy();
+
+            radarChart = new Chart(ctxRadar, {
+                type: 'radar',
+                data: {
+                    labels: ['每日學習', '錯題補救', '段考衝刺', '考後檢討'],
+                    datasets: [{
+                        label: '投入強度',
+                        data: [learningStats.daily, learningStats.error, learningStats.exam, learningStats.review],
+                        fill: true,
+                        backgroundColor: 'rgba(99, 102, 241, 0.2)',
+                        borderColor: 'rgb(99, 102, 241)',
+                        pointBackgroundColor: 'rgb(99, 102, 241)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgb(99, 102, 241)'
+                    }]
+                },
+                options: {
+                    scales: {
+                        r: {
+                            angleLines: { display: false },
+                            suggestedMin: 0,
+                            suggestedMax: 5 
+                        }
+                    },
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+
+            barChart = new Chart(ctxBar, {
+                type: 'bar',
+                data: {
+                    labels: ['學習閃卡 (張)', '練習題目 (題)', '生成計畫 (份)'],
+                    datasets: [{
+                        label: '累計數量',
+                        data: [learningStats.flashcards_count, learningStats.questions_count, learningStats.plans_count],
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.6)',
+                            'rgba(54, 162, 235, 0.6)',
+                            'rgba(255, 206, 86, 0.6)'
+                        ],
+                        borderColor: [
+                            'rgb(255, 99, 132)',
+                            'rgb(54, 162, 235)',
+                            'rgb(255, 206, 86)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        }
+
+        // --- Image Handling Logic ---
+        function setupDropZone(dropZoneId, fileInputId, previewId, textId, type) {
+            const dropZone = document.getElementById(dropZoneId);
+            
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, preventDefaults, false);
+            });
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+            });
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+            });
+            dropZone.addEventListener('drop', (e) => handleFiles(e.dataTransfer.files, type), false);
+        }
+
+        function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+
+        setupDropZone('drop-zone', 'file-input', 'preview-container', 'drop-zone-text', 'daily');
+        setupDropZone('error-drop-zone', 'error-file-input', 'error-preview-container', 'error-drop-text', 'error');
+        setupDropZone('exam-drop-zone', 'exam-file-input', 'exam-preview-container', 'exam-drop-text', 'exam');
+        setupDropZone('review-drop-zone', 'review-file-input', 'review-preview-container', 'review-drop-text', 'review');
+
+        window.addEventListener('paste', (e) => {
+            const sections = ['daily', 'error', 'exam', 'review'];
+            let targetType = null;
+            for(const sec of sections) {
+                if(!document.getElementById(sec).classList.contains('hidden-section')) {
+                    targetType = sec; break;
+                }
+            }
+            if(!targetType) return;
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            const files = [];
+            for (let index in items) {
+                if (items[index].kind === 'file') files.push(items[index].getAsFile());
+            }
+            if (files.length > 0) handleFiles(files, targetType);
+        });
+
+        function handleFiles(files, type) {
+            const filesArray = [...files];
+            let targetArray, previewContainer, textId;
+
+            if(type === 'daily') { targetArray = uploadedImages; previewContainer = document.getElementById('preview-container'); textId = 'drop-zone-text'; }
+            else if(type === 'error') { targetArray = errorUploadedImages; previewContainer = document.getElementById('error-preview-container'); textId = 'error-drop-text'; }
+            else if(type === 'exam') { targetArray = examUploadedImages; previewContainer = document.getElementById('exam-preview-container'); textId = 'exam-drop-text'; }
+            else if(type === 'review') { targetArray = reviewUploadedImages; previewContainer = document.getElementById('review-preview-container'); textId = 'review-drop-text'; }
+
+            filesArray.forEach(file => {
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onloadend = function() {
+                        const base64data = reader.result;
+                        targetArray.push(base64data);
+                        const img = document.createElement('img');
+                        img.src = base64data;
+                        img.className = "h-full w-auto rounded shadow-sm border border-gray-200 object-cover";
+                        previewContainer.appendChild(img);
+                        previewContainer.classList.remove('hidden');
+                        document.getElementById(textId).classList.add('opacity-0');
+                    }
+                }
+            });
+        }
+
+        // --- Gemini API Call Helper ---
+        async function callGemini(prompt, images = []) {
+            try {
+                const imageParts = images.map(base64 => ({
+                    inlineData: {
+                        mimeType: "image/jpeg",
+                        data: base64.split(',')[1]
+                    }
+                }));
+                const payload = { contents: [{ parts: [{ text: prompt }, ...imageParts] }] };
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${userApiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                if (data.error) throw new Error(data.error.message);
+                return data.candidates[0].content.parts[0].text;
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                throw error;
+            }
+        }
+
+        // --- Helper UI ---
+        function setLoading(elementId, text) {
+            const el = document.getElementById(elementId);
+            el.classList.remove('hidden');
+            el.innerHTML = `<div class="flex items-center justify-center gap-2 text-gray-500 h-full min-h-[50px]"><i class="fa-solid fa-spinner fa-spin"></i> ${text}</div>`;
+        }
+        function setError(elementId, msg) {
+            const el = document.getElementById(elementId);
+            el.classList.remove('hidden');
+            el.innerHTML = `<div class="text-red-500 p-2"><i class="fa-solid fa-triangle-exclamation"></i> ${msg}</div>`;
+        }
+
+        // --- Daily Plan Logic ---
+        async function analyzeImagesAndGenerateAll() {
+            if (uploadedImages.length === 0) { alert("請先上傳或貼上圖片！"); return; }
+            const btn = document.getElementById('analyze-btn');
+            const originalText = document.getElementById('analyze-text').innerText;
+            btn.disabled = true;
+            document.getElementById('analyze-text').innerText = "AI 正在全面分析與生成中...";
+            btn.classList.add('animate-pulse');
+
+            setLoading('ai-flashcards-result', '正在生成學習閃卡...');
+            setLoading('ai-mindmap-result', '正在建構心智圖...');
+            setLoading('ai-concept-result', '正在生成觀念講解...');
+            setLoading('ai-quiz-result', '正在設計 10 題練習題...');
+
+            try {
+                const analysisPrompt = "請分析這張圖片內容，判斷適合的讀書計畫。請提取：1.科目(Subject) 2.單元/章節(Unit) 3.今日最重要的學習任務(Task)。請直接回傳 JSON 格式，key 為 subject, unit, task。不要回傳 markdown 格式。";
+                const analysisResultText = await callGemini(analysisPrompt, uploadedImages);
+                const cleanJson = analysisResultText.replace(/```json/g, '').replace(/```/g, '').trim();
+                const analysisResult = JSON.parse(cleanJson);
+
+                if (analysisResult.subject) document.getElementById('daily-subject').value = analysisResult.subject;
+                if (analysisResult.unit) document.getElementById('daily-unit').value = analysisResult.unit;
+                if (analysisResult.task) document.getElementById('daily-task').value = analysisResult.task;
+                updateDailyPrompts();
+
+                const task = analysisResult.task || analysisResult.unit || "這個單元";
+                const subject = analysisResult.subject || "";
+                const unit = analysisResult.unit || "";
+
+                // Increment Stats
+                learningStats.daily += 1; 
+
+                generateFlashcards();
+                generateMindmap();
+                generateConceptExplanation(task);
+                generateDailyQuiz(subject, unit);
+
+                showToast("目標分析完成，正在生成內容...");
+            } catch (error) { alert("分析失敗：" + error.message); } 
+            finally {
+                btn.disabled = false;
+                document.getElementById('analyze-text').innerText = originalText;
+                btn.classList.remove('animate-pulse');
+            }
+        }
+
+        async function generateFlashcards() {
+            try {
+                const prompt = "請仔細閱讀圖片中的內容，為我生成 5-10 張高效學習閃卡。請使用 Markdown 格式，包含問題 (Q) 和詳細答案 (A)。";
+                const text = await callGemini(prompt, uploadedImages);
+                document.getElementById('ai-flashcards-result').innerHTML = marked.parse(text);
+                learningStats.flashcards_count += 10; // Estimation
+            } catch (error) { setError('ai-flashcards-result', error.message); }
+        }
+
+        async function generateMindmap() {
+            try {
+                const prompt = "請仔細閱讀圖片中的內容，歸納重點並整理成一個結構清晰的心智圖。請使用 Markdown 的縮排列表格式 ( - ) 來呈現層級關係。";
+                const text = await callGemini(prompt, uploadedImages);
+                document.getElementById('ai-mindmap-result').innerHTML = marked.parse(text);
+            } catch (error) { setError('ai-mindmap-result', error.message); }
+        }
+
+        async function generateConceptExplanation(task) {
+            try {
+                const prompt = `請針對學習任務「${task}」，用白話文解釋這是什麼，並舉出 2 個生活中的例子來幫助理解。請使用 Markdown 格式輸出。`;
+                const text = await callGemini(prompt, uploadedImages.length > 0 ? uploadedImages : []); 
+                document.getElementById('ai-concept-result').innerHTML = marked.parse(text);
+            } catch (error) { setError('ai-concept-result', error.message); }
+        }
+
+        async function generateDailyQuiz(subject, unit) {
+            try {
+                const target = `${subject} ${unit}`.trim() || "上傳的內容";
+                const prompt = `請你當我的隨身家教，根據我今天讀的【${target}】，出 10 題「相對我目前程度」的題目。每題都要附解析。`;
+                const text = await callGemini(prompt, uploadedImages);
+                document.getElementById('ai-quiz-result').innerHTML = marked.parse(text);
+                learningStats.questions_count += 10;
+            } catch (error) { setError('ai-quiz-result', error.message); }
+        }
+
+        // --- Error Analysis Logic ---
+        async function generateFullErrorAnalysis() {
+            const userText = document.getElementById('error-text-input').value;
+            if (errorUploadedImages.length === 0 && !userText.trim()) { alert("請先貼上錯題截圖或輸入文字！"); return; }
+
+            const btn = document.getElementById('btn-full-analysis');
+            btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 正在全速分析中...';
+            setLoading('ai-remediation-result', 'AI 正在分析...');
+            setLoading('weekly-diagnosis-result', '正在診斷...');
+            setLoading('weekly-strategy-result', '正在規劃...');
+
+            try {
+                learningStats.error += 1; // Stat update
+
+                const contextPrompt = `我上傳了錯題的圖片或文字描述。\n文字描述：${userText}\n\n`;
+                const remediationPrompt = `${contextPrompt} 請幫我進行錯題補救：\n1. 分析這道題目背後的核心觀念與考點。\n2. 直接出 3 題「相同題型」的類題供我練習。\n3. 每題附上正確答案與簡短解析。\n請使用 Markdown 格式輸出。`;
+                
+                const remediationText = await callGemini(remediationPrompt, errorUploadedImages);
+                document.getElementById('ai-remediation-result').innerHTML = marked.parse(remediationText);
+                learningStats.questions_count += 3;
+
+                const diagnosisPrompt = `${contextPrompt} 基於我的錯題以及剛才的補救分析：\n${remediationText.substring(0, 500)}...\n\n請幫我深度分析我的學習盲點。請具體指出我哪個觀念薄弱，或是哪種題型容易出錯。請用 Markdown 條列式輸出。`;
+                const diagnosisText = await callGemini(diagnosisPrompt, errorUploadedImages);
+                lastWeeklyDiagnosis = diagnosisText;
+                document.getElementById('weekly-diagnosis-result').innerHTML = marked.parse(diagnosisText);
+
+                const strategyPrompt = `基於以下的學習盲點分析：\n${diagnosisText}\n\n請依照我的弱點，替我制定下週的 5 天讀書計畫。\n需包含：每日重點、題目數量、觀念/題型的順序。請用 Markdown 表格或清晰的列表呈現。`;
+                const strategyText = await callGemini(strategyPrompt, []); 
+                document.getElementById('weekly-strategy-result').innerHTML = marked.parse(strategyText);
+                learningStats.plans_count += 1;
+
+                showToast("全方位分析完成！");
+            } catch (error) { alert("分析過程發生錯誤：" + error.message); } 
+            finally { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-rocket"></i> 執行全方位分析 (補救+診斷+計畫)'; }
+        }
+
+        // --- Exam Prep Logic ---
+        async function generateExamMap() {
+            if (examUploadedImages.length === 0) { alert("請先上傳考試教材的圖片！"); return; }
+            document.getElementById('ai-exam-map-result').classList.remove('hidden');
+            setLoading('ai-exam-map-result', 'AI 正在分析教材...');
+            setLoading('ai-exam-plan-result', '等待考點地圖生成後...');
+            setLoading('ai-mock-exam-result', '等待考點地圖生成後...');
+
+            try {
+                learningStats.exam += 1;
+
+                const prompt = `請依照所有上傳的教材，生成這次段考的「完整考試範圍地圖」，並幫我把每一章最重要的三個考點列出來。請使用 Markdown 格式輸出。`;
+                const text = await callGemini(prompt, examUploadedImages);
+                lastExamMapResult = text;
+                document.getElementById('ai-exam-map-result').innerHTML = marked.parse(text);
+                generateExamPlan();
+                generateMockExam();
+            } catch (error) { setError('ai-exam-map-result', "生成失敗：" + error.message); }
+        }
+
+        async function generateExamPlan() {
+            if (!lastExamMapResult) return;
+            setLoading('ai-exam-plan-result', 'AI 教練正在規劃...');
+            const prompt = `基於以下的考點地圖：\n${lastExamMapResult}\n\n請當我的後設認知教練，替我設計 7 天衝刺計畫，包含每日讀什麼、做幾題、先理解還是刷題、如何檢查。請用 Markdown 表格呈現。`;
+            try {
+                const text = await callGemini(prompt, []); 
+                document.getElementById('ai-exam-plan-result').innerHTML = marked.parse(text);
+                learningStats.plans_count += 1;
+            } catch (error) { setError('ai-exam-plan-result', error.message); }
+        }
+
+        async function generateMockExam() {
+            if (!lastExamMapResult) return;
+            setLoading('ai-mock-exam-result', 'AI 正在編寫 10 題模擬試卷...');
+            const prompt = `基於以下的考點地圖：\n${lastExamMapResult}\n\n請幫我出一份「段考模擬試卷」10 題，包含：3 題基礎、4 題素養、3 題高難度。並給解析。請使用 Markdown。`;
+            try {
+                const text = await callGemini(prompt, []); 
+                document.getElementById('ai-mock-exam-result').innerHTML = marked.parse(text);
+                learningStats.questions_count += 10;
+            } catch (error) { setError('ai-mock-exam-result', error.message); }
+        }
+
+        // --- Post-Exam Review Logic ---
+        async function analyzeReviewImages() {
+            if (reviewUploadedImages.length === 0) { alert("請先上傳錯題圖片！"); return; }
+            setLoading('ai-review-analysis-result', 'AI 正在深度檢討...');
+            const prompt = `請分析這張圖片中的錯題：\n1. 分析迷思概念。\n2. 設計「10 分鐘補救學習」。\n3. 生成 3 題「補救用」練習題 (1 觀念, 2 應用) 並附解析。\n請使用 Markdown。`;
+            try {
+                learningStats.review += 1;
+                const text = await callGemini(prompt, reviewUploadedImages);
+                document.getElementById('ai-review-analysis-result').innerHTML = marked.parse(text);
+                learningStats.questions_count += 3;
+            } catch (error) { setError('ai-review-analysis-result', "分析失敗：" + error.message); }
+        }
+
+        // --- Learn With You Logic ---
+        function renderSummary() {
+            const container = document.getElementById('summary-container');
+            const resultIds = [
+                { id: 'ai-flashcards-result', title: '📇 每日 - 學習閃卡' },
+                { id: 'ai-mindmap-result', title: '🗺️ 每日 - 心智圖' },
+                { id: 'ai-concept-result', title: '💡 每日 - 觀念講解' },
+                { id: 'ai-quiz-result', title: '📝 每日 - 10 題練習' },
+                { id: 'ai-remediation-result', title: '💊 錯題補救與類題' },
+                { id: 'weekly-diagnosis-result', title: '🩺 學習盲點診斷' },
+                { id: 'weekly-strategy-result', title: '📅 下週讀書策略' },
+                { id: 'ai-exam-map-result', title: '🗺️ 段考考點地圖' },
+                { id: 'ai-exam-plan-result', title: '🏃 段考 7 天衝刺表' },
+                { id: 'ai-mock-exam-result', title: '✍️ 段考模擬試卷' },
+                { id: 'ai-review-analysis-result', title: '🔍 考後檢討報告' }
+            ];
+
+            let contentHTML = "";
+            let hasContent = false;
+
+            resultIds.forEach(item => {
+                const el = document.getElementById(item.id);
+                if (el && el.innerText.length > 50 && !el.innerText.includes('等待') && !el.innerText.includes('生成失敗')) {
+                    hasContent = true;
+                    contentHTML += `
+                        <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                            <h4 class="font-bold text-gray-700 mb-2 border-b pb-2">${item.title}</h4>
+                            <div class="prose prose-sm max-w-none text-gray-600">${el.innerHTML}</div>
+                        </div>
+                    `;
+                }
+            });
+
+            if (hasContent) container.innerHTML = contentHTML;
+            else container.innerHTML = `<p class="text-gray-400 text-center py-10 text-sm">目前還沒有生成的內容，快去其他頁面開始學習吧！</p>`;
+        }
+
+        async function askAI() {
+            const input = document.getElementById('ask-ai-input');
+            const question = input.value.trim();
+            if (!question) { alert("請輸入您的問題！"); return; }
+
+            const responseContainer = document.getElementById('ai-chat-response');
+            responseContainer.classList.remove('hidden');
+            responseContainer.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> AI 思考中...';
+
+            const summaryHTML = document.getElementById('summary-container').innerText;
+            const context = summaryHTML.length > 50 ? `\n\n【參考背景資訊 (我剛剛生成的學習內容)】:\n${summaryHTML.substring(0, 2000)}...` : "";
+            const prompt = `我是一個學生，正在使用 AI 讀書計畫工具。\n我的問題是：${question}\n${context}\n請根據上述背景資訊（如果有的話），回答我的問題。`;
+
+            try {
+                const text = await callGemini(prompt, []);
+                responseContainer.innerHTML = marked.parse(text);
+                input.value = "";
+            } catch (error) { responseContainer.innerHTML = `<span class="text-red-500">回答失敗: ${error.message}</span>`; }
+        }
+
+        // --- Utilities ---
+        function copyText(text) { navigator.clipboard.writeText(text).then(() => showToast("已複製到剪貼簿")); }
+        function copyDynamic(type) { copyText(type); } // Stub for legacy
+        function updateDailyPrompts() { updateDisplay('daily-unit', 'daily-unit-display'); updateDisplay('daily-task', 'daily-task-display'); }
+        function updateExamPrompts() { updateDisplay('exam-subject', 'exam-subject-display'); updateDisplay('exam-status', 'exam-status-display'); }
+        function updateReviewPrompts() { updateDisplay('review-units', 'review-units-display'); }
+        function updateQuickPrompt() { updateDisplay('quick-subject', 'quick-subject-display'); }
+        function updateDisplay(inputId, displayClass) {
+            const val = document.getElementById(inputId).value;
+            document.querySelectorAll('.' + displayClass).forEach(el => el.innerText = val ? val : "____");
+        }
+        let toastTimeout;
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            if(msg) document.getElementById('toast-msg').innerText = msg;
+            toast.classList.remove('translate-x-[150%]');
+            if (toastTimeout) clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => { toast.classList.add('translate-x-[150%]'); }, 2500);
+        }
+    </script>
+</body>
+</html>
