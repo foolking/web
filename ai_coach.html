@@ -97,7 +97,7 @@
         <div class="p-4 border-t text-xs text-gray-400 text-center hidden lg:block">
             <button onclick="toggleConfigModal()" class="text-indigo-500 hover:underline mb-2 block w-full text-left">🔗 設定後台連結</button>
             <p class="mt-1">Designed for Student Success</p>
-            <p class="mt-1">v7.1.0 (Single Column)</p>
+            <p class="mt-1">v7.2.0 (Optimized)</p>
         </div>
     </aside>
 
@@ -777,7 +777,12 @@
             try {
                 const analysisPrompt = "請分析這張圖片內容，判斷適合的讀書計畫。請提取：1.科目(Subject) 2.單元/章節(Unit) 3.今日最重要的學習任務(Task)。請直接回傳 JSON 格式，key 為 subject, unit, task。不要回傳 markdown 格式。";
                 const analysisResultText = await callGemini(analysisPrompt, uploadedImages);
-                const cleanJson = analysisResultText.replace(/```json/g, '').replace(/```/g, '').trim();
+                let cleanJson = analysisResultText.trim();
+                // Extract JSON if wrapped in markdown code blocks
+                const jsonMatch = cleanJson.match(/```json\s*([\s\S]*?)\s*```/) || cleanJson.match(/```\s*([\s\S]*?)\s*```/);
+                if (jsonMatch) {
+                    cleanJson = jsonMatch[1];
+                }
                 const analysisResult = JSON.parse(cleanJson);
 
                 if (analysisResult.subject) document.getElementById('daily-subject').value = analysisResult.subject;
